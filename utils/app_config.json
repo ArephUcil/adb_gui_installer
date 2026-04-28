@@ -1,0 +1,8 @@
+{
+  "last_package_name": "com.fore.coffee.pos.dev",
+  "last_apk_path": "C:\\Users\\Asus\\OneDrive\\Fore\\APK\\FKI\\2.2.75\\app-dev-fki-debug.apk",
+  "use_bundled_tools": false,
+  "adb_path": "./platform-tools/adb.exe",
+  "aapt_path": "",
+  "theme": "light"
+}
