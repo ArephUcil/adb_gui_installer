@@ -38,6 +38,7 @@ from workers import (
     RetryInstallWorker,
     ApkInfoWorker,
     PackageNameWorker,
+    SecondaryDisplayWorker,
 )
 
 
@@ -56,6 +57,7 @@ class MainWindow(QWidget):
         self.install_workers = []  # Track active install workers
         self.uninstall_workers = []  # Track active uninstall workers
         self.clear_data_workers = []  # Track active clear data workers
+        self.secondary_display_workers = []  # Track active secondary display workers
         self.device_refresh_worker = None
         self.device_connect_worker = None
         self.device_disconnect_worker = None
@@ -293,49 +295,11 @@ class MainWindow(QWidget):
         main_layout.addLayout(header_layout)
 
         # =============================
-        # APK & Connection Section
+        # Tools Settings & WiFi Connection Section
         # =============================
-        top_layout = QHBoxLayout()
+        tools_conn_layout = QHBoxLayout()
         
-        # APK Selection Card
-        apk_group = QGroupBox("📦 APK Management")
-        apk_vbox = QVBoxLayout()
-        self.apk_label = QLabel("Not selected")
-        self.apk_label.setWordWrap(True)
-        self.apk_label.setStyleSheet("color: #AAAAAA; font-style: italic;")
-        self.browse_button = QPushButton("Browse APK")
-        self.browse_button.setObjectName("primary_button")
-        self.browse_button.clicked.connect(self.select_apk)
-        apk_vbox.addWidget(self.apk_label)
-        apk_vbox.addWidget(self.browse_button)
-        apk_group.setLayout(apk_vbox)
-        
-        # Connection Card
-        conn_group = QGroupBox("🔌 WiFi Connection")
-        conn_vbox = QVBoxLayout()
-        ip_hbox = QHBoxLayout()
-        self.connect_ip_input = QLineEdit()
-        self.connect_ip_input.setPlaceholderText("IP Address (e.g. 192.168.1.5)")
-        self.connect_port_input = QLineEdit()
-        self.connect_port_input.setPlaceholderText("Port")
-        self.connect_port_input.setFixedWidth(60)
-        self.connect_port_input.setText(DEFAULT_PORT)
-        ip_hbox.addWidget(self.connect_ip_input)
-        ip_hbox.addWidget(self.connect_port_input)
-        
-        self.connect_button = QPushButton("Connect Device")
-        self.connect_button.clicked.connect(self.connect_device)
-        conn_vbox.addLayout(ip_hbox)
-        conn_vbox.addWidget(self.connect_button)
-        conn_group.setLayout(conn_vbox)
-        
-        top_layout.addWidget(apk_group, 3)
-        top_layout.addWidget(conn_group, 2)
-        main_layout.addLayout(top_layout)
-
-        # =============================
-        # Tools Settings Section
-        # =============================
+        # Tools Settings
         tools_settings_group = QGroupBox("🛠️ Tool Settings")
         tools_layout = QVBoxLayout()
 
@@ -374,12 +338,34 @@ class MainWindow(QWidget):
         tools_layout.addLayout(aapt_path_layout)
 
         tools_settings_group.setLayout(tools_layout)
-        main_layout.addWidget(tools_settings_group)
+        
+        # WiFi Connection Card
+        conn_group = QGroupBox("🔌 WiFi Connection")
+        conn_vbox = QVBoxLayout()
+        ip_hbox = QHBoxLayout()
+        self.connect_ip_input = QLineEdit()
+        self.connect_ip_input.setPlaceholderText("IP Address (e.g. 192.168.1.5)")
+        self.connect_port_input = QLineEdit()
+        self.connect_port_input.setPlaceholderText("Port")
+        self.connect_port_input.setFixedWidth(60)
+        self.connect_port_input.setText(DEFAULT_PORT)
+        ip_hbox.addWidget(self.connect_ip_input)
+        ip_hbox.addWidget(self.connect_port_input)
+        
+        self.connect_button = QPushButton("Connect Device")
+        self.connect_button.clicked.connect(self.connect_device)
+        conn_vbox.addLayout(ip_hbox)
+        conn_vbox.addWidget(self.connect_button)
+        conn_group.setLayout(conn_vbox)
+        
+        tools_conn_layout.addWidget(tools_settings_group, 2)
+        tools_conn_layout.addWidget(conn_group, 1)
+        main_layout.addLayout(tools_conn_layout)
 
         # =============================
-        # Main Content Section (Devices & Info)
+        # Connected Devices & APK Details Section
         # =============================
-        content_layout = QHBoxLayout()
+        devices_details_layout = QHBoxLayout()
         
         # Device Panel
         device_group = QGroupBox("📱 Connected Devices")
@@ -400,7 +386,7 @@ class MainWindow(QWidget):
         device_vbox.addLayout(device_btns)
         device_group.setLayout(device_vbox)
         
-        # APK Info Panel
+        # APK Details Card
         info_group = QGroupBox("ℹ️ APK Details")
         info_vbox = QVBoxLayout()
         self.apk_info_output = QTextEdit()
@@ -415,13 +401,48 @@ class MainWindow(QWidget):
         info_vbox.addWidget(self.get_apk_info_button)
         info_group.setLayout(info_vbox)
         
-        content_layout.addWidget(device_group, 2)
-        content_layout.addWidget(info_group, 3)
-        main_layout.addLayout(content_layout)
+        devices_details_layout.addWidget(device_group, 1)
+        devices_details_layout.addWidget(info_group, 2)
+        main_layout.addLayout(devices_details_layout)
 
         # =============================
-        # Action Section
+        # APK Management Section
         # =============================
+        apk_group = QGroupBox("📦 APK Management")
+        apk_hbox = QHBoxLayout()
+        
+        # Left side: APK info and label
+        apk_left_vbox = QVBoxLayout()
+        self.apk_label = QLabel("Not selected")
+        self.apk_label.setWordWrap(True)
+        self.apk_label.setStyleSheet("color: #AAAAAA; font-style: italic;")
+        apk_left_vbox.addWidget(self.apk_label)
+        apk_left_vbox.addStretch()
+        
+        # Right side: buttons vertically
+        apk_btns_vbox = QVBoxLayout()
+        self.browse_button = QPushButton("Browse APK")
+        self.browse_button.setObjectName("primary_button")
+        self.browse_button.clicked.connect(self.select_apk)
+        self.install_button = QPushButton("📥 Install APK")
+        self.install_button.setObjectName("primary_button")
+        self.install_button.setEnabled(False)
+        self.install_button.clicked.connect(self.install_apk)
+        
+        apk_btns_vbox.addWidget(self.browse_button)
+        apk_btns_vbox.addWidget(self.install_button)
+        
+        apk_hbox.addLayout(apk_left_vbox, 2)
+        apk_hbox.addLayout(apk_btns_vbox, 1)
+        apk_group.setLayout(apk_hbox)
+        main_layout.addWidget(apk_group)
+
+        # =============================
+        # Execution & Secondary Display Section
+        # =============================
+        exec_secondary_layout = QHBoxLayout()
+        
+        # Action Section
         action_group = QGroupBox("⚡ Execution")
         action_vbox = QVBoxLayout()
         
@@ -435,25 +456,62 @@ class MainWindow(QWidget):
         pkg_hbox.addWidget(self.get_package_button)
         
         btns_hbox = QHBoxLayout()
-        self.install_button = QPushButton("📥 Install APK")
-        self.install_button.setObjectName("primary_button")
-        self.install_button.setEnabled(False)
         self.uninstall_button = QPushButton("🗑️ Uninstall")
         self.uninstall_button.setObjectName("danger_button")
         self.clear_data_button = QPushButton("🧹 Clear Data")
         
-        self.install_button.clicked.connect(self.install_apk)
         self.uninstall_button.clicked.connect(self.uninstall_app)
         self.clear_data_button.clicked.connect(self.clear_app_data)
         
-        btns_hbox.addWidget(self.install_button)
         btns_hbox.addWidget(self.uninstall_button)
         btns_hbox.addWidget(self.clear_data_button)
         
         action_vbox.addLayout(pkg_hbox)
         action_vbox.addLayout(btns_hbox)
         action_group.setLayout(action_vbox)
-        main_layout.addWidget(action_group)
+        
+        # Secondary Display Section
+        secondary_group = QGroupBox("🖥️ Secondary Display Settings")
+        secondary_vbox = QVBoxLayout()
+        
+        # Resolution and DPI settings
+        res_dpi_hbox = QHBoxLayout()
+        
+        res_label = QLabel("Resolution:")
+        self.resolution_input = QLineEdit()
+        self.resolution_input.setText("1280x800")
+        self.resolution_input.setPlaceholderText("e.g. 1280x800")
+        res_dpi_hbox.addWidget(res_label)
+        res_dpi_hbox.addWidget(self.resolution_input)
+        
+        dpi_label = QLabel("DPI:")
+        self.dpi_input = QLineEdit()
+        self.dpi_input.setText("213")
+        self.dpi_input.setPlaceholderText("e.g. 213")
+        self.dpi_input.setFixedWidth(60)
+        res_dpi_hbox.addWidget(dpi_label)
+        res_dpi_hbox.addWidget(self.dpi_input)
+        res_dpi_hbox.addStretch()
+        
+        # Secondary display buttons
+        secondary_btns_hbox = QHBoxLayout()
+        self.secondary_on_button = QPushButton("✓ Secondary ON")
+        self.secondary_on_button.setObjectName("primary_button")
+        self.secondary_on_button.clicked.connect(self.enable_secondary_display)
+        self.secondary_off_button = QPushButton("✗ Secondary OFF")
+        self.secondary_off_button.setObjectName("danger_button")
+        self.secondary_off_button.clicked.connect(self.disable_secondary_display)
+        
+        secondary_btns_hbox.addWidget(self.secondary_on_button)
+        secondary_btns_hbox.addWidget(self.secondary_off_button)
+        
+        secondary_vbox.addLayout(res_dpi_hbox)
+        secondary_vbox.addLayout(secondary_btns_hbox)
+        secondary_group.setLayout(secondary_vbox)
+        
+        exec_secondary_layout.addWidget(action_group, 1)
+        exec_secondary_layout.addWidget(secondary_group, 1)
+        main_layout.addLayout(exec_secondary_layout)
 
         # =============================
         # Status Section
@@ -1158,3 +1216,99 @@ class MainWindow(QWidget):
         if device in self.progress_bars:
             self.progress_bars[device].setValue(percentage)
             self.progress_labels[device].setText(f"{percentage}%")
+
+    def enable_secondary_display(self):
+        """Enable secondary display on selected devices."""
+        resolution = self.resolution_input.text().strip()
+        dpi = self.dpi_input.text().strip()
+
+        if not resolution or not dpi:
+            QMessageBox.warning(
+                self,
+                "Invalid Input",
+                "Please enter both resolution and DPI values."
+            )
+            return
+
+        selected_devices = []
+        for i in range(self.device_list.count()):
+            item = self.device_list.item(i)
+            if item.checkState() == 2:
+                device_text = item.text()
+                device = device_text.split(" | ")[-1]
+                selected_devices.append(device)
+
+        if not selected_devices:
+            QMessageBox.warning(
+                self,
+                "No Device Selected",
+                "Please select at least one device."
+            )
+            return
+
+        # Start secondary display workers for each device
+        for device in selected_devices:
+            worker = SecondaryDisplayWorker(device, resolution, dpi, enable=True, parent=self)
+            worker.log_signal.connect(self.log)
+            worker.progress.connect(self.on_secondary_display_progress)
+            worker.finished.connect(self.on_secondary_display_finished)
+            self.secondary_display_workers.append(worker)
+            self.create_progress_bar(device)
+            worker.start()
+
+        # Disable buttons while operations are in progress
+        if self.secondary_display_workers:
+            self.secondary_on_button.setEnabled(False)
+            self.secondary_off_button.setEnabled(False)
+
+    def disable_secondary_display(self):
+        """Disable secondary display on selected devices."""
+        selected_devices = []
+        for i in range(self.device_list.count()):
+            item = self.device_list.item(i)
+            if item.checkState() == 2:
+                device_text = item.text()
+                device = device_text.split(" | ")[-1]
+                selected_devices.append(device)
+
+        if not selected_devices:
+            QMessageBox.warning(
+                self,
+                "No Device Selected",
+                "Please select at least one device."
+            )
+            return
+
+        # Start secondary display workers for each device
+        for device in selected_devices:
+            worker = SecondaryDisplayWorker(device, "", "", enable=False, parent=self)
+            worker.log_signal.connect(self.log)
+            worker.progress.connect(self.on_secondary_display_progress)
+            worker.finished.connect(self.on_secondary_display_finished)
+            self.secondary_display_workers.append(worker)
+            self.create_progress_bar(device)
+            worker.start()
+
+        # Disable buttons while operations are in progress
+        if self.secondary_display_workers:
+            self.secondary_on_button.setEnabled(False)
+            self.secondary_off_button.setEnabled(False)
+
+    def on_secondary_display_progress(self, device, percentage):
+        """Update secondary display progress bar."""
+        if device in self.progress_bars:
+            self.progress_bars[device].setValue(percentage)
+            self.progress_labels[device].setText(f"{percentage}%")
+
+    def on_secondary_display_finished(self, device, message):
+        """Handle secondary display operation completion."""
+        self.log(message)
+        # Remove progress bar
+        self.remove_progress_bar(device)
+        # Clean up finished workers
+        self.secondary_display_workers = [w for w in self.secondary_display_workers if w.device != device]
+
+        # Re-enable buttons if no more workers are running
+        if not self.secondary_display_workers:
+            self.secondary_on_button.setEnabled(True)
+            self.secondary_off_button.setEnabled(True)

@@ -389,3 +389,47 @@ class PackageNameWorker(QThread):
         except Exception as e:
             logger.error(f"Error extracting package name: {str(e)}")
             self.error.emit(f"Error extracting package name: {str(e)}")
+
+
+class SecondaryDisplayWorker(BaseWorker):
+    """Worker for configuring secondary display overlay."""
+
+    progress = pyqtSignal(str, int)  # device, percentage
+
+    def __init__(self, device, resolution, dpi, enable=True, parent=None):
+        super().__init__(device, parent)
+        self.resolution = resolution
+        self.dpi = dpi
+        self.enable = enable
+
+    def run(self):
+        from services.adb_service import AdbService
+
+        if self.enable:
+            display_config = f"{self.resolution}/{self.dpi}"
+            self.log(f"Enabling secondary display {display_config} on {self.device}...")
+            command = ["shell", "settings", "put", "global", "overlay_display_devices", display_config]
+        else:
+            self.log(f"Disabling secondary display on {self.device}...")
+            command = ["shell", "settings", "delete", "global", "overlay_display_devices"]
+
+        try:
+            self.progress.emit(self.device, 50)
+            result = AdbService._run_adb_command(AdbService._build_device_command(self.device, *command))
+            self.progress.emit(self.device, 100)
+            
+            if result.returncode == 0:
+                status = "enabled" if self.enable else "disabled"
+                message = f"SUCCESS: Secondary display {status} on {self.device}"
+                self.log(message)
+            else:
+                message = f"FAILED: Secondary display operation failed on {self.device}\n{result.stderr or result.stdout}"
+                self.log(message)
+            
+            self.finished.emit(self.device, message)
+        except Exception as e:
+            self.progress.emit(self.device, 0)
+            error_msg = f"Error configuring secondary display on {self.device}: {str(e)}"
+            logger.error(error_msg)
+            self.log(error_msg)
+            self.finished.emit(self.device, error_msg)

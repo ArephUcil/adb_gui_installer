@@ -1,7 +1,7 @@
 {
   "last_package_name": "com.fore.coffee.pos.dev",
-  "last_apk_path": "C:\\Users\\Asus\\OneDrive\\Fore\\APK\\FKI\\2.2.75\\app-dev-fki-debug.apk",
-  "use_bundled_tools": false,
+  "last_apk_path": "C:\\Users\\Asus\\OneDrive\\Fore\\APK\\Donut\\4.0.4\\app-dev-donut-debug.apk",
+  "use_bundled_tools": true,
   "adb_path": "./platform-tools/adb.exe",
   "aapt_path": "",
   "theme": "light"
