@@ -20,7 +20,7 @@ def install_requirements():
 def build_windows():
     """Run PyInstaller for Windows."""
     print("Building for Windows...")
-    subprocess.check_call(["pyinstaller", "--noconfirm", "build_windows.spec"])
+    subprocess.check_call([sys.executable, "-m", "PyInstaller", "--noconfirm", "build_windows.spec"])
 
 def build_mac():
     """Run PyInstaller for macOS."""
@@ -34,7 +34,7 @@ def build_mac():
     is_arm64 = platform.machine() == "arm64"
     print(f"Detected architecture: {platform.machine()}")
     
-    subprocess.check_call(["pyinstaller", "--noconfirm", "build_mac.spec"])
+    subprocess.check_call([sys.executable, "-m", "PyInstaller", "--noconfirm", "build_mac.spec"])
 
 def main():
     if len(sys.argv) > 1:
