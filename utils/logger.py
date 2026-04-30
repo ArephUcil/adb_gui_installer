@@ -20,9 +20,26 @@ class Logger:
 
     def _setup_logger(self):
         """Setup the logger with file and console handlers."""
-        # Create logs directory if it doesn't exist
-        log_dir = os.path.join(os.getcwd(), "logs")
-        os.makedirs(log_dir, exist_ok=True)
+        import sys
+        
+        # Determine log directory
+        if getattr(sys, 'frozen', False):
+            if sys.platform == "win32":
+                base_data_dir = os.path.join(os.environ.get("APPDATA", ""), "ADB_GUI_Installer")
+            elif sys.platform == "darwin":
+                base_data_dir = os.path.expanduser("~/Library/Application Support/ADB_GUI_Installer")
+            else:
+                base_data_dir = os.path.expanduser("~/.adb_gui_installer")
+            log_dir = os.path.join(base_data_dir, "logs")
+        else:
+            log_dir = os.path.join(os.getcwd(), "logs")
+            
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except OSError:
+            # Fallback to current directory if data directory is not writable
+            log_dir = os.path.join(os.getcwd(), "logs")
+            os.makedirs(log_dir, exist_ok=True)
 
         # Create log filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

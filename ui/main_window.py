@@ -70,16 +70,21 @@ class MainWindow(QWidget):
 
         # Initialize config manager
         if getattr(sys, 'frozen', False):
-            # If running as a compiled executable, use the folder containing the .exe
+            # If running as a compiled executable, use the folder containing the executable as app_dir
             app_dir = os.path.dirname(sys.executable)
+            # Use standard app data directory for config/logs when frozen
+            if sys.platform == "win32":
+                data_dir = os.path.join(os.environ.get("APPDATA", app_dir), "ADB_GUI_Installer")
+            elif sys.platform == "darwin":
+                data_dir = os.path.expanduser("~/Library/Application Support/ADB_GUI_Installer")
+            else:
+                data_dir = os.path.expanduser("~/.adb_gui_installer")
         else:
             # If running as a Python script, use the project root
             app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            data_dir = app_dir
             
-        # Add this line to force-create the 'utils' folder if it doesn't exist
-        os.makedirs(os.path.join(app_dir, "utils"), exist_ok=True)
-            
-        self.config = ConfigManager(app_dir)
+        self.config = ConfigManager(app_dir, data_dir)
         
         # Initialize AdbService with configured path
         AdbService.set_adb_executable(self.config.adb_path)

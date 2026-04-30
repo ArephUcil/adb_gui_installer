@@ -213,25 +213,11 @@ class ApkInfoWorker(QThread):
         import os
         import re
         import subprocess
+        from utils.tool_finder import find_aapt
 
         aapt = self.aapt_path
         if not aapt:
-            # Try to find aapt in bundled tools
-            aapt_name = "aapt.exe" if os.name == "nt" else "aapt"
-            aapt2_name = "aapt2.exe" if os.name == "nt" else "aapt2"
-            
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            aapt_paths = [
-                os.path.join(project_root, "build-tools", aapt_name),
-                os.path.join(project_root, "build-tools", aapt2_name),
-                aapt_name,
-                aapt2_name
-            ]
-
-            for path in aapt_paths:
-                if os.path.exists(path) or self._is_command_available(path):
-                    aapt = path
-                    break
+            aapt = find_aapt()
 
         if not aapt:
             return None
@@ -331,26 +317,11 @@ class PackageNameWorker(QThread):
         import os
         import re
         import subprocess
-        import shutil
+        from utils.tool_finder import find_aapt
 
         aapt = self.aapt_path
         if not aapt:
-            # Try to find aapt in bundled tools
-            aapt_name = "aapt.exe" if os.name == "nt" else "aapt"
-            aapt2_name = "aapt2.exe" if os.name == "nt" else "aapt2"
-            
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            aapt_paths = [
-                os.path.join(project_root, "build-tools", aapt_name),
-                os.path.join(project_root, "build-tools", aapt2_name),
-                aapt_name,
-                aapt2_name
-            ]
-
-            for path in aapt_paths:
-                if os.path.exists(path) or shutil.which(path):
-                    aapt = path
-                    break
+            aapt = find_aapt()
 
         if not aapt:
             self.error.emit("aapt/aapt2 not found, cannot extract package name")
