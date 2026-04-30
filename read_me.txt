@@ -172,6 +172,9 @@ To reset configuration:
 ```
 adb_gui_installer/
 ├── main.py                 # Application entry point
+├── build_app.py            # Unified build script
+├── build_windows.spec      # PyInstaller spec for Windows
+├── build_mac.spec          # PyInstaller spec for Mac (Apple Silicon)
 ├── services/
 │   └── adb_service.py      # ADB command wrapper
 ├── ui/
@@ -183,6 +186,38 @@ adb_gui_installer/
 │   └── __init__.py         # Worker thread classes
 └── read_me.txt            # This file
 ```
+
+## Building the Application
+
+A unified build system is provided via `build_app.py`.
+
+### Prerequisites
+- Python 3.8+
+- PyInstaller (`pip install pyinstaller`)
+
+### 1. Install Dependencies
+```bash
+python build_app.py install
+```
+
+### 2. Build for Current Platform
+On Windows, this will create a `.exe` in the `dist` folder.
+On macOS (Apple Silicon), this will create a `.app` bundle in the `dist` folder.
+
+```bash
+python build_app.py build
+```
+
+### 3. Clean Build Artifacts
+To remove `build` and `dist` folders:
+```bash
+python build_app.py clean
+```
+
+### Note on Bundled Tools
+The application expects `platform-tools` and `build-tools` folders in the same directory as the executable (when frozen) or in the project root.
+- **Windows**: Bundles `.exe` files from these folders.
+- **macOS**: Ensure you have the macOS versions of `adb` and `aapt` in these folders before building, or use system-installed tools by unchecking "Use Bundled Tools" in the app settings.
 
 ## Development
 

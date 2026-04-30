@@ -28,16 +28,20 @@ class AdbService:
         """
         logger.debug(f"Running ADB command: {' '.join(command)}")
         try:
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                check=False,
-                timeout=timeout,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
+            kwargs = {
+                "capture_output": True,
+                "text": True,
+                "encoding": 'utf-8',
+                "errors": 'replace',
+                "check": False,
+                "timeout": timeout
+            }
+            
+            # creationflags is Windows-only
+            if os.name == 'nt':
+                kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+                
+            result = subprocess.run(command, **kwargs)
             logger.debug(f"ADB command completed with return code: {result.returncode}")
             if result.stdout:
                 logger.debug(f"ADB stdout: {result.stdout.strip()}")

@@ -217,13 +217,15 @@ class ApkInfoWorker(QThread):
         aapt = self.aapt_path
         if not aapt:
             # Try to find aapt in bundled tools
+            aapt_name = "aapt.exe" if os.name == "nt" else "aapt"
+            aapt2_name = "aapt2.exe" if os.name == "nt" else "aapt2"
+            
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             aapt_paths = [
-                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build-tools", "aapt.exe"),
-                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build-tools", "aapt2.exe"),
-                "aapt.exe",
-                "aapt2.exe",
-                "aapt",
-                "aapt2"
+                os.path.join(project_root, "build-tools", aapt_name),
+                os.path.join(project_root, "build-tools", aapt2_name),
+                aapt_name,
+                aapt2_name
             ]
 
             for path in aapt_paths:
@@ -334,13 +336,15 @@ class PackageNameWorker(QThread):
         aapt = self.aapt_path
         if not aapt:
             # Try to find aapt in bundled tools
+            aapt_name = "aapt.exe" if os.name == "nt" else "aapt"
+            aapt2_name = "aapt2.exe" if os.name == "nt" else "aapt2"
+            
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             aapt_paths = [
-                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build-tools", "aapt.exe"),
-                os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "build-tools", "aapt2.exe"),
-                "aapt.exe",
-                "aapt2.exe",
-                "aapt",
-                "aapt2"
+                os.path.join(project_root, "build-tools", aapt_name),
+                os.path.join(project_root, "build-tools", aapt2_name),
+                aapt_name,
+                aapt2_name
             ]
 
             for path in aapt_paths:

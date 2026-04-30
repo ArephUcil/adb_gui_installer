@@ -31,7 +31,8 @@ class ConfigManager:
             self._config["use_bundled_tools"] = True
         
         if "adb_path" not in self._config:
-            bundled_adb = os.path.join(self.app_dir, "platform-tools", "adb.exe")
+            adb_name = "adb.exe" if os.name == "nt" else "adb"
+            bundled_adb = os.path.join(self.app_dir, "platform-tools", adb_name)
             self._config["adb_path"] = bundled_adb if os.path.exists(bundled_adb) else ""
         
         if "aapt_path" not in self._config:
@@ -48,8 +49,11 @@ class ConfigManager:
             return None
         
         # Check root of build-tools first
-        aapt_root = os.path.join(build_tools_dir, "aapt.exe")
-        aapt2_root = os.path.join(build_tools_dir, "aapt2.exe")
+        aapt_name = "aapt.exe" if os.name == "nt" else "aapt"
+        aapt2_name = "aapt2.exe" if os.name == "nt" else "aapt2"
+        
+        aapt_root = os.path.join(build_tools_dir, aapt_name)
+        aapt2_root = os.path.join(build_tools_dir, aapt2_name)
         if os.path.exists(aapt_root):
             return aapt_root
         if os.path.exists(aapt2_root):
@@ -60,8 +64,8 @@ class ConfigManager:
             for item in os.listdir(build_tools_dir):
                 item_path = os.path.join(build_tools_dir, item)
                 if os.path.isdir(item_path):
-                    aapt = os.path.join(item_path, "aapt.exe")
-                    aapt2 = os.path.join(item_path, "aapt2.exe")
+                    aapt = os.path.join(item_path, aapt_name)
+                    aapt2 = os.path.join(item_path, aapt2_name)
                     if os.path.exists(aapt):
                         return aapt
                     if os.path.exists(aapt2):
@@ -133,7 +137,8 @@ class ConfigManager:
         path = self.get("adb_path", "")
         # If configured to use bundled tools, prefer bundled path if it exists
         if self.use_bundled_tools:
-            bundled_adb = os.path.join(self.app_dir, "platform-tools", "adb.exe")
+            adb_name = "adb.exe" if os.name == "nt" else "adb"
+            bundled_adb = os.path.join(self.app_dir, "platform-tools", adb_name)
             if os.path.exists(bundled_adb):
                 return bundled_adb
         # Fall back to configured path or system PATH
