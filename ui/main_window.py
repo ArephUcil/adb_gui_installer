@@ -691,23 +691,49 @@ class MainWindow(QWidget):
         self.get_package_button.setEnabled(True)
         self.package_name_worker = None
 
-    def get_package_name_from_apk(self, apk_path):
-        logger.debug(f"Extracting package name from APK: {apk_path}")
+    def _run_aapt_command(self, apk_path):
+        """Helper method to run aapt command with silent window."""
         aapt = self.config.aapt_path
         if not aapt:
-            logger.warning("aapt/aapt2 not found, cannot extract package name")
             return None
-
+        
         try:
+            # Setup silent window execution
+            startup_info = None
+            creation_flags = 0
+            if os.name == 'nt':  # Windows
+                startup_info = subprocess.STARTUPINFO()
+                startup_info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startup_info.wShowWindow = subprocess.SW_HIDE
+                creation_flags = subprocess.CREATE_NO_WINDOW
+            
             result = subprocess.run(
                 [aapt, "dump", "badging", apk_path],
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
                 errors='replace',
-                check=False
+                check=False,
+                startupinfo=startup_info,
+                creationflags=creation_flags,
+                timeout=30
             )
+            return result
+        except Exception as e:
+            logger.error(f"Error running aapt command: {str(e)}", exc_info=True)
+            return None
 
+    def get_package_name_from_apk(self, apk_path):
+        logger.debug(f"Extracting package name from APK: {apk_path}")
+        if not self.config.aapt_path:
+            logger.warning("aapt/aapt2 not found, cannot extract package name")
+            return None
+
+        try:
+            result = self._run_aapt_command(apk_path)
+            if not result:
+                return None
+            
             if result.returncode != 0:
                 logger.error(f"aapt command failed with return code {result.returncode}")
                 return None
@@ -726,21 +752,12 @@ class MainWindow(QWidget):
         return None
 
     def extract_apk_metadata(self, apk_path):
-        aapt = self.config.aapt_path
-        if not aapt:
+        if not self.config.aapt_path:
             return None
 
         try:
-            result = subprocess.run(
-                [aapt, "dump", "badging", apk_path],
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                check=False
-            )
-
-            if result.returncode != 0:
+            result = self._run_aapt_command(apk_path)
+            if not result or result.returncode != 0:
                 return None
 
             package_name = None
