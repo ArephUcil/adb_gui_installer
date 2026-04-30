@@ -17,7 +17,7 @@ a = Analysis(
         ('platform-tools', 'platform-tools'),
         ('utils/app_config.json', 'utils'),
     ],
-    hiddenimports=['PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets'],
+    hiddenimports=['PyQt5', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtWidgets'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
