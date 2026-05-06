@@ -273,3 +273,23 @@ class ConfigManager:
     def aapt_path(self, value):
         """Set the AAPT executable path."""
         self.set("aapt_path", value)
+
+    @property
+    def last_screenshot_dir(self):
+        """Get the last used screenshot directory."""
+        return self.get("last_screenshot_dir", "")
+
+    @last_screenshot_dir.setter
+    def last_screenshot_dir(self, value):
+        """Set the last used screenshot directory."""
+        self.set("last_screenshot_dir", value)
+
+    @property
+    def last_recording_dir(self):
+        """Get the last used recording directory."""
+        return self.get("last_recording_dir", "")
+
+    @last_recording_dir.setter
+    def last_recording_dir(self, value):
+        """Set the last used recording directory."""
+        self.set("last_recording_dir", value)

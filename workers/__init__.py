@@ -408,3 +408,158 @@ class SecondaryDisplayWorker(BaseWorker):
             logger.error(error_msg)
             self.log(error_msg)
             self.finished.emit(self.device, error_msg)
+
+
+class ScreenshotWorker(BaseWorker):
+    """Worker for taking screenshots from devices."""
+
+    progress = pyqtSignal(str, int)  # device, percentage
+
+    def __init__(self, device, output_path, parent=None):
+        super().__init__(device, parent)
+        self.output_path = output_path
+
+    def run(self):
+        from services.adb_service import AdbService
+
+        self.log(f"Taking screenshot from {self.device}...")
+        self.progress.emit(self.device, 10)
+        
+        try:
+            success, message = AdbService.take_screenshot(self.device, self.output_path)
+            self.progress.emit(self.device, 100)
+            self.finished.emit(self.device, message)
+        except Exception as e:
+            self.progress.emit(self.device, 0)
+            logger.error(f"Screenshot error on {self.device}: {str(e)}")
+            self.finished.emit(self.device, f"Screenshot error on {self.device}: {str(e)}")
+
+
+class ScreenRecordWorker(BaseWorker):
+    """Worker for recording screen from devices."""
+
+    progress = pyqtSignal(str, int)  # device, percentage
+
+    def __init__(self, device, duration, bit_rate, output_path, parent=None):
+        super().__init__(device, parent)
+        self.duration = duration
+        self.bit_rate = bit_rate
+        self.output_path = output_path
+        self.remote_path = "/sdcard/screen_record.mp4"
+
+    def run(self):
+        from services.adb_service import AdbService
+
+        self.log(f"Starting screen recording on {self.device} for {self.duration}s...")
+        self.progress.emit(self.device, 5)
+        
+        try:
+            # Start recording on device
+            success, message = AdbService.start_screen_recording(
+                self.device, self.remote_path, self.duration, self.bit_rate
+            )
+            
+            if success:
+                self.progress.emit(self.device, 50)
+                self.log(f"Recording completed, pulling file from {self.device}...")
+                
+                # Pull the recorded file to local machine
+                pull_success, pull_message = AdbService.pull_file(
+                    self.device, self.remote_path, self.output_path
+                )
+                
+                if pull_success:
+                    self.progress.emit(self.device, 100)
+                    self.finished.emit(self.device, f"Recording saved to {self.output_path}")
+                else:
+                    self.progress.emit(self.device, 0)
+                    self.finished.emit(self.device, f"Recording failed: {pull_message}")
+            else:
+                self.progress.emit(self.device, 0)
+                self.finished.emit(self.device, f"Recording failed: {message}")
+                
+        except Exception as e:
+            self.progress.emit(self.device, 0)
+            logger.error(f"Screen recording error on {self.device}: {str(e)}")
+            self.finished.emit(self.device, f"Screen recording error on {self.device}: {str(e)}")
+
+
+class StartRecordingWorker(BaseWorker):
+    """Worker for starting screen recording on devices."""
+
+    progress = pyqtSignal(str, int)  # device, percentage
+
+    def __init__(self, device, bit_rate, parent=None):
+        super().__init__(device, parent)
+        self.bit_rate = bit_rate
+        self.remote_path = "/sdcard/screen_record.mp4"
+
+    def run(self):
+        from services.adb_service import AdbService
+
+        self.log(f"Starting screen recording on {self.device}...")
+        self.progress.emit(self.device, 10)
+        
+        try:
+            success, message = AdbService.start_screen_recording(
+                self.device, self.remote_path, duration=None, bit_rate=self.bit_rate
+            )
+            
+            if success:
+                self.progress.emit(self.device, 100)
+                self.finished.emit(self.device, f"Recording started: {message}")
+            else:
+                self.progress.emit(self.device, 0)
+                self.finished.emit(self.device, f"Failed to start recording: {message}")
+                
+        except Exception as e:
+            self.progress.emit(self.device, 0)
+            logger.error(f"Error starting screen recording on {self.device}: {str(e)}")
+            self.finished.emit(self.device, f"Error starting recording: {str(e)}")
+
+
+class StopRecordingWorker(BaseWorker):
+    """Worker for stopping screen recording and pulling the file."""
+
+    progress = pyqtSignal(str, int)  # device, percentage
+
+    def __init__(self, device, output_path, parent=None):
+        super().__init__(device, parent)
+        self.output_path = output_path
+        self.remote_path = "/sdcard/screen_record.mp4"
+
+    def run(self):
+        from services.adb_service import AdbService
+
+        self.log(f"Stopping screen recording on {self.device}...")
+        self.progress.emit(self.device, 10)
+        
+        try:
+            # Stop the recording
+            stop_success, stop_message = AdbService.stop_screen_recording(
+                self.device, self.remote_path
+            )
+            
+            if stop_success:
+                self.progress.emit(self.device, 50)
+                self.log(f"Recording stopped, pulling file from {self.device}...")
+                
+                # Pull the recorded file to local machine
+                pull_success, pull_message = AdbService.pull_file(
+                    self.device, self.remote_path, self.output_path
+                )
+                
+                if pull_success:
+                    self.progress.emit(self.device, 100)
+                    self.finished.emit(self.device, f"Recording saved to {self.output_path}")
+                else:
+                    self.progress.emit(self.device, 0)
+                    self.finished.emit(self.device, f"Failed to pull recording: {pull_message}")
+            else:
+                self.progress.emit(self.device, 0)
+                self.finished.emit(self.device, f"Failed to stop recording: {stop_message}")
+                
+        except Exception as e:
+            self.progress.emit(self.device, 0)
+            logger.error(f"Error stopping screen recording on {self.device}: {str(e)}")
+            self.finished.emit(self.device, f"Error stopping recording: {str(e)}")

@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import zipfile
 import sys
 
@@ -23,6 +24,7 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QCheckBox,
     QGroupBox,
+    QInputDialog,
 )
 
 from services.adb_service import AdbService
@@ -39,6 +41,10 @@ from workers import (
     ApkInfoWorker,
     PackageNameWorker,
     SecondaryDisplayWorker,
+    ScreenshotWorker,
+    ScreenRecordWorker,
+    StartRecordingWorker,
+    StopRecordingWorker,
 )
 
 
@@ -58,6 +64,11 @@ class MainWindow(QWidget):
         self.uninstall_workers = []  # Track active uninstall workers
         self.clear_data_workers = []  # Track active clear data workers
         self.secondary_display_workers = []  # Track active secondary display workers
+        self.screenshot_workers = []  # Track active screenshot workers
+        self.screen_record_workers = []  # Track active screen record workers
+        self.start_recording_workers = []  # Track active start recording workers
+        self.stop_recording_workers = []  # Track active stop recording workers
+        self.recording_active = False
         self.device_refresh_worker = None
         self.device_connect_worker = None
         self.device_disconnect_worker = None
@@ -387,8 +398,18 @@ class MainWindow(QWidget):
         device_btns.addWidget(self.refresh_button)
         device_btns.addWidget(self.disconnect_button)
         
+        # Screenshot and Recording buttons
+        media_btns = QHBoxLayout()
+        self.screenshot_button = QPushButton("📸 Screenshot")
+        self.screenshot_button.clicked.connect(self.take_screenshot)
+        self.record_button = QPushButton("🎥 Start Recording")
+        self.record_button.clicked.connect(self.toggle_recording)
+        media_btns.addWidget(self.screenshot_button)
+        media_btns.addWidget(self.record_button)
+        
         device_vbox.addWidget(self.device_list)
         device_vbox.addLayout(device_btns)
+        device_vbox.addLayout(media_btns)
         device_group.setLayout(device_vbox)
         
         # APK Details Card
@@ -1334,3 +1355,207 @@ class MainWindow(QWidget):
         if not self.secondary_display_workers:
             self.secondary_on_button.setEnabled(True)
             self.secondary_off_button.setEnabled(True)
+
+    def take_screenshot(self):
+        """Take screenshot from selected devices."""
+        selected_devices = []
+        for i in range(self.device_list.count()):
+            item = self.device_list.item(i)
+            if item.checkState() == 2:
+                device_text = item.text()
+                device_serial = device_text.split(" | ")[-1]
+                device_model = device_text.split(" | ")[0]
+                selected_devices.append((device_serial, device_model))
+
+        if not selected_devices:
+            QMessageBox.warning(
+                self,
+                "No Device Selected",
+                "Please select at least one device."
+            )
+            return
+
+        # Choose output directory
+        output_dir = QFileDialog.getExistingDirectory(
+            self,
+            "Select Output Directory for Screenshots",
+            self.config.last_screenshot_dir if hasattr(self.config, 'last_screenshot_dir') else ""
+        )
+        
+        if not output_dir:
+            return
+
+        # Save the directory for next time
+        self.config.last_screenshot_dir = output_dir
+
+        # Start screenshot workers for each device
+        for device_serial, device_model in selected_devices:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            # Sanitize model name for filename (replace spaces and special chars)
+            safe_model = re.sub(r'[^\w\-_.]', '_', device_model)
+            output_path = os.path.join(output_dir, f"screenshot_{safe_model}_{timestamp}.png")
+            
+            worker = ScreenshotWorker(device_serial, output_path, self)
+            worker.log_signal.connect(self.log)
+            worker.progress.connect(self.on_screenshot_progress)
+            worker.finished.connect(self.on_screenshot_finished)
+            self.screenshot_workers.append(worker)
+            self.create_progress_bar(device_serial)
+            worker.start()
+
+        # Disable screenshot button while operations are in progress
+        if self.screenshot_workers:
+            self.screenshot_button.setEnabled(False)
+
+    def toggle_recording(self):
+        """Toggle recording state between start and stop."""
+        if self.recording_active:
+            self.stop_recording()
+        else:
+            self.start_recording()
+
+    def start_recording(self):
+        """Start screen recording on selected devices."""
+        selected_devices = []
+        for i in range(self.device_list.count()):
+            item = self.device_list.item(i)
+            if item.checkState() == 2:
+                device_text = item.text()
+                device_serial = device_text.split(" | ")[-1]
+                selected_devices.append(device_serial)
+
+        if not selected_devices:
+            QMessageBox.warning(
+                self,
+                "No Device Selected",
+                "Please select at least one device."
+            )
+            return
+
+        self.record_button.setEnabled(False)
+
+        # Start recording workers for each device
+        for device_serial in selected_devices:
+            bit_rate = "800000"  # 800kbps for smaller files
+            worker = StartRecordingWorker(device_serial, bit_rate, self)
+            worker.log_signal.connect(self.log)
+            worker.progress.connect(self.on_start_recording_progress)
+            worker.finished.connect(self.on_start_recording_finished)
+            self.start_recording_workers.append(worker)
+            self.create_progress_bar(device_serial)
+            worker.start()
+
+    def stop_recording(self):
+        """Stop screen recording on selected devices and save files."""
+        if not self.recording_active:
+            QMessageBox.information(
+                self,
+                "Recording Not Started",
+                "Recording is not currently in progress."
+            )
+            return
+
+        selected_devices = []
+        for i in range(self.device_list.count()):
+            item = self.device_list.item(i)
+            if item.checkState() == 2:
+                device_text = item.text()
+                device_serial = device_text.split(" | ")[-1]
+                device_model = device_text.split(" | ")[0]
+                selected_devices.append((device_serial, device_model))
+
+        if not selected_devices:
+            QMessageBox.warning(
+                self,
+                "No Device Selected",
+                "Please select at least one device."
+            )
+            return
+
+        output_dir = QFileDialog.getExistingDirectory(
+            self,
+            "Select Output Directory for Recordings",
+            self.config.last_recording_dir if hasattr(self.config, 'last_recording_dir') else ""
+        )
+        
+        if not output_dir:
+            return
+
+        self.config.last_recording_dir = output_dir
+        self.record_button.setEnabled(False)
+
+        # Stop recording workers for each device
+        for device_serial, device_model in selected_devices:
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            safe_model = re.sub(r'[^\w\-_.]', '_', device_model)
+            output_path = os.path.join(output_dir, f"recording_{safe_model}_{timestamp}.mp4")
+            
+            worker = StopRecordingWorker(device_serial, output_path, self)
+            worker.log_signal.connect(self.log)
+            worker.progress.connect(self.on_stop_recording_progress)
+            worker.finished.connect(self.on_stop_recording_finished)
+            self.stop_recording_workers.append(worker)
+            self.create_progress_bar(device_serial)
+            worker.start()
+
+    def on_screenshot_progress(self, device, percentage):
+        """Update screenshot progress bar."""
+        if device in self.progress_bars:
+            self.progress_bars[device].setValue(percentage)
+            self.progress_labels[device].setText(f"{percentage}%")
+
+    def on_screenshot_finished(self, device, message):
+        """Handle screenshot operation completion."""
+        self.log(message)
+        # Remove progress bar
+        self.remove_progress_bar(device)
+        # Clean up finished workers
+        self.screenshot_workers = [w for w in self.screenshot_workers if w.device != device]
+
+        # Re-enable button if no more workers are running
+        if not self.screenshot_workers:
+            self.screenshot_button.setEnabled(True)
+
+    def on_start_recording_progress(self, device, percentage):
+        """Update start recording progress bar."""
+        if device in self.progress_bars:
+            self.progress_bars[device].setValue(percentage)
+            self.progress_labels[device].setText(f"{percentage}%")
+
+    def on_start_recording_finished(self, device, message):
+        """Handle start recording operation completion."""
+        self.log(message)
+        # Remove progress bar
+        self.remove_progress_bar(device)
+        # Clean up finished workers
+        self.start_recording_workers = [w for w in self.start_recording_workers if w.device != device]
+
+        # Re-enable button if no more workers are running
+        if not self.start_recording_workers:
+            self.record_button.setEnabled(True)
+            if "started" in message.lower():
+                self.recording_active = True
+                self.record_button.setText("⏹️ Stop Recording")
+            else:
+                self.recording_active = False
+                self.record_button.setText("🎥 Start Recording")
+
+    def on_stop_recording_progress(self, device, percentage):
+        """Update stop recording progress bar."""
+        if device in self.progress_bars:
+            self.progress_bars[device].setValue(percentage)
+            self.progress_labels[device].setText(f"{percentage}%")
+
+    def on_stop_recording_finished(self, device, message):
+        """Handle stop recording operation completion."""
+        self.log(message)
+        # Remove progress bar
+        self.remove_progress_bar(device)
+        # Clean up finished workers
+        self.stop_recording_workers = [w for w in self.stop_recording_workers if w.device != device]
+
+        # Re-enable button if no more workers are running
+        if not self.stop_recording_workers:
+            self.record_button.setEnabled(True)
+            self.recording_active = False
+            self.record_button.setText("🎥 Start Recording")

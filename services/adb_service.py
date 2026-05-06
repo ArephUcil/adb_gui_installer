@@ -8,6 +8,7 @@ class AdbService:
     """Service for running ADB commands with configurable tool paths."""
     
     _adb_executable = None
+    _recording_processes = {}  # Track recording processes by device serial
 
     @staticmethod
     def set_adb_executable(adb_path):
@@ -256,4 +257,189 @@ class AdbService:
             ["Success"],
             f"Cleared data for {package_name} on",
             device_serial
+        )
+
+    @staticmethod
+    def take_screenshot(device_serial, output_path):
+        """
+        Take a screenshot from a specific device and save to output_path.
+
+        Returns:
+            success (bool)
+            message (str)
+        """
+        command = AdbService._build_device_command(device_serial, "exec-out", "screencap", "-p")
+        
+        logger.info(f"Taking screenshot from {device_serial} to {output_path}")
+        try:
+            # For binary output, we need to handle it differently
+            adb_exe = AdbService.get_adb_executable()
+            full_command = [adb_exe, "-s", device_serial, "exec-out", "screencap", "-p"]
+            
+            result = subprocess.run(
+                full_command,
+                capture_output=True,
+                check=False,
+                timeout=30
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                with open(output_path, 'wb') as f:
+                    f.write(result.stdout)  # Write binary data directly
+                logger.info(f"Screenshot saved to {output_path}")
+                return True, f"Screenshot saved to {output_path}"
+            else:
+                error_msg = result.stderr.decode('utf-8', errors='replace').strip() or "Unknown error"
+                logger.error(f"Screenshot failed: {error_msg}")
+                return False, f"Failed to take screenshot: {error_msg}"
+                
+        except Exception as e:
+            logger.error(f"Error taking screenshot from {device_serial}: {str(e)}")
+            return False, f"Error taking screenshot: {str(e)}"
+
+    @staticmethod
+    def start_screen_recording(device_serial, remote_path="/sdcard/screen_record.mp4", duration=None, bit_rate="12000000"):
+        """
+        Start screen recording on a specific device.
+        
+        Args:
+            device_serial: Device serial number
+            remote_path: Path on device to save recording
+            duration: Recording duration in seconds (None for indefinite)
+            bit_rate: Bit rate for video compression (lower = smaller file)
+            
+        Returns:
+            success (bool)
+            message (str)
+        """
+        # For indefinite recording, start in background
+        import subprocess
+        
+        adb_exe = AdbService.get_adb_executable()
+        command = [adb_exe, "-s", device_serial, "shell", "screenrecord", 
+                    "--bit-rate", bit_rate, remote_path]
+        
+        logger.info(f"Starting indefinite screen recording on {device_serial}")
+        try:
+            # Start the process in background
+            process = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+            
+            # Store the process for later stopping
+            AdbService._recording_processes[device_serial] = process
+            
+            logger.info(f"Screen recording started on {device_serial}")
+            return True, f"Recording started on device: {remote_path}"
+            
+        except Exception as e:
+            logger.error(f"Error starting screen recording on {device_serial}: {str(e)}")
+            return False, f"Error starting recording: {str(e)}"
+
+    @staticmethod
+    def stop_screen_recording(device_serial, remote_path="/sdcard/screen_record.mp4"):
+        """
+        Stop screen recording on a specific device.
+        
+        Returns:
+            success (bool)
+            message (str)
+        """
+        logger.info(f"Stopping screen recording on {device_serial}")
+        try:
+            adb_exe = AdbService.get_adb_executable()
+            pid_command = [adb_exe, "-s", device_serial, "shell", "pidof", "screenrecord"]
+
+            # First stop the remote screenrecord process so the MP4 can finalize
+            pid_result = subprocess.run(
+                pid_command,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                check=False,
+                timeout=10
+            )
+
+            remote_stopped = False
+            if pid_result.returncode == 0 and pid_result.stdout.strip():
+                for pid in pid_result.stdout.strip().split():
+                    kill_command = [adb_exe, "-s", device_serial, "shell", "kill", "-2", pid]
+                    subprocess.run(
+                        kill_command,
+                        capture_output=True,
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace',
+                        check=False,
+                        timeout=10
+                    )
+
+                import time
+                timeout = 5
+                interval = 0.5
+                elapsed = 0.0
+                while elapsed < timeout:
+                    check_result = subprocess.run(
+                        pid_command,
+                        capture_output=True,
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace',
+                        check=False,
+                        timeout=10
+                    )
+                    if check_result.returncode != 0 or not check_result.stdout.strip():
+                        remote_stopped = True
+                        break
+                    time.sleep(interval)
+                    elapsed += interval
+
+                if not remote_stopped:
+                    logger.warning(f"Remote screenrecord process still running after SIGINT on {device_serial}")
+            else:
+                remote_stopped = True
+                logger.info(f"No remote screenrecord process found on {device_serial}")
+
+            # Then stop the local adb shell process cleanly
+            if device_serial in AdbService._recording_processes:
+                process = AdbService._recording_processes[device_serial]
+                try:
+                    process.terminate()
+                    process.wait(timeout=10)
+                except Exception:
+                    process.kill()
+                    process.wait(timeout=5)
+                finally:
+                    del AdbService._recording_processes[device_serial]
+
+            # Give the device a moment to finalize the MP4 header if needed
+            if remote_stopped:
+                import time
+                time.sleep(1)
+
+            logger.info(f"Screen recording stopped on {device_serial}")
+            return True, f"Recording stopped on device: {remote_path}"
+        except Exception as e:
+            logger.error(f"Error stopping screen recording on {device_serial}: {str(e)}")
+            return False, f"Error stopping recording: {str(e)}"
+
+    @staticmethod
+    def pull_file(device_serial, remote_path, local_path):
+        """
+        Pull a file from device to local machine.
+        
+        Returns:
+            success (bool)
+            message (str)
+        """
+        command = AdbService._build_device_command(device_serial, "pull", remote_path, local_path)
+        return AdbService._execute_adb_operation(
+            command,
+            ["100%", "1 file pulled"],
+            f"Pulled {remote_path} to",
+            local_path
         )
